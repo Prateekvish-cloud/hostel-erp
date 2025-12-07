@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Student Dashboard</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <header>Student Dashboard</header>
+
+    <div class="page">
+        <nav>
+            <h2>Menu</h2>
+            <ul>
+                <li><a href="student.html" class="active">Dashboard</a></li>
+                <li><a href="student_room.html">My Room</a></li>
+                <li><a href="student_maintenance.html">Maintenance</a></li>
+                <li><a href="student_mess.html">Mess</a></li>
+                <li><a href="student_hostel_attendance.html">Hostel Attendance</a></li>
+                <li><a href="student_fees.html">Fees</a></li>
+                <li><a href="student_documents.html">Documents</a></li>
+                <li><a href="student_gatepass.html">Gate Pass</a></li>
+            </ul>
+            <p id="info" style="font-size:13px; margin-top:16px;">Checking access...</p>
+            <button onclick="logout()" style="margin-top:8px;">Logout</button>
+        </nav>
+
+        <main>
+            <!-- Welcome banner -->
+            <section class="card" style="margin-bottom:12px;">
+                <h2>Welcome back, <span id="welcome-name">student</span></h2>
+                <p id="welcome-sub">Have a great day in hostel.</p>
+
+                <div style="margin-top:10px;font-size:13px;color:var(--text-muted);display:flex;justify-content:space-between;align-items:center;">
+                    <span id="today-text">Today</span>
+                    <span id="quick-tip">Tip: Use My Room to see allocation details.</span>
+                </div>
+            </section>
+
+            <!-- Overview and recent activity -->
+            <section class="card">
+                <h2>Overview</h2>
+                <p>Your quick snapshot: room, mess, attendance, fees and gate passes.</p>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:14px 0;">
+                    <div class="info-tile" onclick="location.href='student_room.html'">
+                        <div class="label">Room</div>
+                        <div class="value" id="tile-room">See My Room page</div>
+                    </div>
+                    <div class="info-tile" onclick="location.href='student_fees.html'">
+                        <div class="label">Total Due</div>
+                        <div class="value" id="tile-due">₹0</div>
+                    </div>
+                    <div class="info-tile" onclick="location.href='student_gatepass.html'">
+                        <div class="label">Gate Passes Pending</div>
+                        <div class="value" id="tile-gp-pending">0</div>
+                    </div>
+                    <div class="info-tile" onclick="location.href='student_mess.html'">
+                        <div class="label">Today’s Meal</div>
+                        <div class="value" id="tile-today-meal">See menu</div>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;margin-bottom:10px;">
+                    <div class="info-tile" onclick="location.href='student_mess.html'">
+                        <div class="label">Mess Rating</div>
+                        <div class="value" id="tile-mess-rating">— / 10</div>
+                        <div style="font-size:12px;color:var(--text-muted);" id="tile-mess-note">
+                            Rate food and cleanliness from Mess page.
+                        </div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Notices</div>
+                        <div class="value" id="tile-notices-count">0</div>
+                        <div style="font-size:12px;color:var(--text-muted);" id="tile-notices-latest">
+                            No recent notices.
+                        </div>
+                    </div>
+                </div>
+
+                <h3 style="margin-top:4px;">Recent activity</h3>
+                <ul id="recent-activity" style="list-style:none;padding-left:0;font-size:13px;color:var(--text-muted);margin-top:6px;">
+                </ul>
+
+                <div id="dash-msg" class="alert" style="display:none;"></div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        async function checkAccess() {
+            const token = localStorage.getItem("access_token");
+            if (!token) {
+                window.location.href = "index.html";
+                return;
+            }
+
+            try {
+                const res = await fetch(API_BASE + "/api/me", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+
+                if (!res.ok) {
+                    window.location.href = "index.html";
+                    return;
+                }
+
+                const data = await res.json();
+
+                if (data.role !== "student") {
+                    document.getElementById("info").textContent =
+                        "You are not student (role: " + data.role + ")";
+                } else {
+                    document.getElementById("info").textContent =
+                        "Welcome, student " + data.username;
+                    document.getElementById("welcome-name").textContent = data.username;
+                    await loadDashboardTiles();
+                }
+            } catch (e) {
+                window.location.href = "index.html";
+            }
+        }
+
+        async function loadDashboardTiles() {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("dash-msg");
+            msg.style.display = "none";
+
+            const recent = [];
+
+            const today = new Date();
+            const opts = {
+                weekday: "short",
+                year: "numeric",
+                month: "short",
+                day: "numeric",
+            };
+            document.getElementById("today-text").textContent =
+                today.toLocaleDateString(undefined, opts);
+
+            try {
+                document.getElementById("tile-room").textContent = "See My Room page";
+                recent.push("Room details: open My Room page");
+
+                // Fees
+                try {
+                    const feesRes = await fetch(API_BASE + "/api/fees/my", {
+                        headers: {
+                            Authorization: "Bearer " + token
+                        },
+                    });
+                    if (feesRes.ok) {
+                        const fees = await feesRes.json();
+                        const due =
+                            fees.total_due !== null && fees.total_due !== undefined ?
+                            fees.total_due :
+                            0;
+                        document.getElementById("tile-due").textContent = "₹" + due;
+                        recent.push("Fees: total due ₹" + due);
+                    }
+                } catch (e) {}
+
+                // Gate passes
+                try {
+                    const gpRes = await fetch(API_BASE + "/api/gatepass/my", {
+                        headers: {
+                            Authorization: "Bearer " + token
+                        },
+                    });
+                    if (gpRes.ok) {
+                        const gps = await gpRes.json();
+                        const pending = Array.isArray(gps) ?
+                            gps.filter((g) => g.status === "pending").length :
+                            0;
+                        document.getElementById("tile-gp-pending").textContent = pending;
+                        recent.push("Gate passes: " + pending + " pending");
+                    }
+                } catch (e) {}
+
+                // Today mess menu
+                try {
+                    const menuRes = await fetch(API_BASE + "/api/mess/menu/today");
+                    if (menuRes.ok) {
+                        const menu = await menuRes.json();
+                        const bf =
+                            menu.breakfast && menu.breakfast.length > 0 ?
+                            menu.breakfast[0] :
+                            "";
+                        const label = bf || "See menu";
+                        document.getElementById("tile-today-meal").textContent = label;
+                        recent.push(
+                            "Today’s breakfast: " + (bf || "check mess page for details")
+                        );
+                    }
+                } catch (e) {}
+
+                // Mess rating placeholder
+                document.getElementById("tile-mess-rating").textContent = "— / 10";
+                document.getElementById("tile-mess-note").textContent =
+                    "Give feedback about food, cleanliness and serving in Mess page.";
+
+                // Notices
+                let notices = [];
+                try {
+                    const nRes = await fetch(API_BASE + "/api/notices");
+                    if (nRes.ok) {
+                        const nData = await nRes.json();
+                        if (Array.isArray(nData)) notices = nData;
+                    }
+                } catch (e) {}
+
+                const count = notices.length;
+                document.getElementById("tile-notices-count").textContent = count;
+                if (count > 0) {
+                    const latest = notices[0].title || String(notices[0]);
+                    document.getElementById("tile-notices-latest").textContent = latest;
+                    recent.push("Latest notice: " + latest);
+                } else {
+                    document.getElementById("tile-notices-latest").textContent =
+                        "No new notices.";
+                }
+
+                const ul = document.getElementById("recent-activity");
+                ul.innerHTML = recent
+                    .slice(0, 5)
+                    .map((t) => "<li>• " + t + "</li>")
+                    .join("");
+
+                msg.textContent = "Dashboard loaded.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+            } catch (e) {
+                msg.textContent = "Some dashboard data failed to load.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("role");
+            window.location.href = "index.html";
+        }
+
+        checkAccess();
+    </script>
+</body>
+
+</html>

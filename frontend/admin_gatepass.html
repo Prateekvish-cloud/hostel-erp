@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Admin – Gate Pass</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <header>Admin – Gate Pass</header>
+
+    <div class="page">
+        <nav>
+            <h2>Menu</h2>
+            <ul>
+                <li><a href="admin.html">Dashboard</a></li>
+                <li><a href="admin_rooms.html">Rooms</a></li>
+                <li><a href="admin_maintenance.html">Maintenance</a></li>
+                <li><a href="admin_mess.html">Mess</a></li>
+                <li><a href="admin_hostel_attendance.html">Hostel Attendance</a></li>
+                <li><a href="admin_fees.html">Fees</a></li>
+                <li><a href="admin_documents.html">Documents</a></li>
+                <li><a href="admin_gatepass.html" class="active">Gate Pass</a></li>
+            </ul>
+            <div style="margin-top:20px;">
+                <div id="datetime" style="font-size:14px;color:var(--text-muted);margin-bottom:8px;"></div>
+                <p id="info" style="font-size:13px;">Welcome, admin.</p>
+                <button onclick="logout()" style="margin-top:8px;">Logout</button>
+            </div>
+        </nav>
+
+        <main>
+            <section class="card" id="gatepass-requests">
+                <h2>Gate Pass Requests</h2>
+                <p>Review and approve or reject students' gate pass requests.</p>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:14px 0;">
+                    <div class="info-tile">
+                        <div class="label">Total Requests</div>
+                        <div class="value" id="tile-gp-total">0</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Approved</div>
+                        <div class="value" id="tile-gp-approved">0</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Pending</div>
+                        <div class="value" id="tile-gp-pending">0</div>
+                    </div>
+                </div>
+
+                <h3>All gate passes</h3>
+                <button onclick="loadAllGatePasses()">Refresh Gate Passes</button>
+                <div id="gp-list-msg" class="alert" style="display:none;margin-top:6px;"></div>
+
+                <div id="gatepass-list-pretty" style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+                    No gate pass requests yet.
+                </div>
+
+                <details style="margin-top:10px;font-size:12px;color:var(--text-muted);">
+                    <summary>Technical details (JSON)</summary>
+                    <pre id="gatepass-list" style="margin-top:6px;">[]</pre>
+                </details>
+
+                <h3 style="margin-top:12px;">Decide gate pass</h3>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                    <input id="gp-id" type="number" placeholder="Gate pass ID" />
+                    <select id="gp-status">
+                        <option value="approved">Approve</option>
+                        <option value="rejected">Reject</option>
+                    </select>
+                    <button onclick="decideGatePass()">Submit Decision</button>
+                </div>
+                <div id="gp-decide-msg" class="alert" style="display:none;margin-top:6px;"></div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        function updateDateTime() {
+            const now = new Date();
+            const options = {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            };
+            document.getElementById('datetime').textContent =
+                now.toLocaleDateString('en-IN', options);
+        }
+
+        async function checkAccess() {
+            const token = localStorage.getItem("access_token");
+            if (!token) {
+                window.location.href = "index.html";
+                return;
+            }
+
+            try {
+                const res = await fetch(API_BASE + "/api/me", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+
+                if (!res.ok) {
+                    window.location.href = "index.html";
+                    return;
+                }
+
+                const data = await res.json();
+
+                if (data.role !== "admin") {
+                    document.getElementById("info").textContent =
+                        "You are not admin (role: " + data.role + ")";
+                } else {
+                    document.getElementById("info").textContent =
+                        "Welcome, admin " + data.username;
+                    updateDateTime();
+                    setInterval(updateDateTime, 60000);
+                    await loadAllGatePasses();
+                }
+            } catch (err) {
+                window.location.href = "index.html";
+            }
+        }
+
+        async function loadAllGatePasses() {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("gp-list-msg");
+            msg.style.display = "none";
+
+            try {
+                const res = await fetch(API_BASE + "/api/gatepass/", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+                if (!res.ok) throw new Error("Failed to load gate passes");
+                const data = await res.json();
+
+                document.getElementById("gatepass-list").textContent =
+                    JSON.stringify(data, null, 2);
+
+                const arr = Array.isArray(data) ? data : [];
+                const total = arr.length;
+                const approved = arr.filter((g) => g.status === "approved").length;
+                const pending = arr.filter((g) => g.status === "pending").length;
+
+                document.getElementById("tile-gp-total").textContent = total;
+                document.getElementById("tile-gp-approved").textContent = approved;
+                document.getElementById("tile-gp-pending").textContent = pending;
+
+                const listDiv = document.getElementById("gatepass-list-pretty");
+                if (arr.length === 0) {
+                    listDiv.textContent = "No gate pass requests yet.";
+                } else {
+                    listDiv.innerHTML = arr
+                        .map((g) => {
+                            const id = g.id || g.gp_id || "";
+                            const from = g.from_date || g.from || "-";
+                            const to = g.to_date || g.to || "-";
+                            const student = g.student_name || g.student || "";
+                            const reason = g.reason || "";
+                            const status = g.status || "unknown";
+                            const created = g.created_at || g.created || "";
+                            const badgeClass =
+                                status === "approved" ?
+                                "badge-success" :
+                                status === "pending" ?
+                                "badge-warning" :
+                                "badge-error";
+                            return (
+                                '<div style="padding:8px 10px;border-radius:var(--radius-md);border:1px solid rgba(55,65,81,0.7);margin-bottom:6px;">' +
+                                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">' +
+                                '<span style="font-weight:600;">#' +
+                                id +
+                                " • " +
+                                from +
+                                " → " +
+                                to +
+                                "</span>" +
+                                '<span class="' +
+                                badgeClass +
+                                '" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' +
+                                status +
+                                "</span>" +
+                                "</div>" +
+                                '<div style="font-size:12px;color:var(--text-muted);">' +
+                                (student ? "Student: " + student : "") +
+                                (created ? " • Requested on " + created : "") +
+                                "</div>" +
+                                (reason ?
+                                    '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Reason: ' +
+                                    reason +
+                                    "</div>" :
+                                    "") +
+                                "</div>"
+                            );
+                        })
+                        .join("");
+                }
+
+                msg.textContent = "Gate passes loaded.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+            } catch (err) {
+                msg.textContent = "Failed to load gate passes.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        async function decideGatePass() {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("gp-decide-msg");
+            msg.style.display = "none";
+
+            const id = parseInt(document.getElementById("gp-id").value || "0", 10);
+            const status = document.getElementById("gp-status").value;
+
+            if (!id) {
+                msg.textContent = "Enter a valid gate pass ID.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+                return;
+            }
+
+            try {
+                await fetch(API_BASE + "/api/gatepass/" + id + "/decide", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: "Bearer " + token,
+                    },
+                    body: JSON.stringify({
+                        status
+                    }),
+                });
+                msg.textContent = "Decision saved.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+                await loadAllGatePasses();
+            } catch (err) {
+                msg.textContent = "Failed to submit decision.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("role");
+            window.location.href = "index.html";
+        }
+
+        checkAccess();
+    </script>
+</body>
+
+</html>

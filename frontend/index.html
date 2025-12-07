@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Hostel ERP Login</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body class="login-page">
+    <header>Hostel ERP Login</header>
+
+    <div class="page">
+        <main class="card">
+            <!-- Left side: branding + image -->
+            <section style="
+                padding:22px 22px 24px;
+                border-right:1px solid rgba(148,163,184,0.25);
+                display:flex;
+                flex-direction:column;
+                background: radial-gradient(circle at top left,#1d4ed8 0,#1d4ed8 30%,#020617 100%);
+                border-radius:18px 0 0 18px;
+            ">
+                <div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+                        <div style="
+                            width:44px;height:44px;border-radius:16px;
+                            background:radial-gradient(circle at top left,#38bdf8,#4f46e5);
+                            display:flex;align-items:center;justify-content:center;
+                            font-weight:700;font-size:20px;
+                        ">
+                            H
+                        </div>
+                        <div>
+                            <div style="font-weight:700;font-size:20px;">Hostel ERP</div>
+                            <div style="font-size:12px;color:rgba(226,232,240,0.9);">
+                                Smart hostel &amp; mess management
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="
+                        margin-top:18px;
+                        border-radius:18px;
+                        border:1px solid rgba(191,219,254,0.55);
+                        background:rgba(15,23,42,0.45);
+                        height:230px;
+                        overflow:hidden;
+                        box-shadow:0 18px 40px rgba(15,23,42,0.9);
+                    ">
+                        <img src="IMS_BOY_HOSTEL.jpg" alt="Hostel building" style="width:100%;height:100%;object-fit:cover;" />
+                    </div>
+                </div>
+
+                <div style="margin-top:18px;font-size:12px;color:rgba(226,232,240,0.85);">
+                    © 2025 Hostel ERP
+                </div>
+            </section>
+
+            <!-- Right side: login form -->
+            <section style="padding:26px 32px 30px 32px;display:flex;flex-direction:column;justify-content:center;">
+                <h2 style="margin:0 0 6px;font-size:24px;">Log in</h2>
+                <p style="font-size:13px;color:var(--text-muted);margin:0 0 20px;">
+                    Sign in to access your hostel room, mess, fees, documents and gate pass dashboard.
+                </p>
+
+                <form id="loginForm" style="max-width:360px;">
+                    <div style="margin-bottom:12px;">
+                        <label for="userid" style="display:block;margin-bottom:4px;font-size:13px;">Username</label>
+                        <input type="text" id="userid" required style="width:100%;" />
+                    </div>
+
+                    <div style="margin-bottom:12px;">
+                        <label for="password" style="display:block;margin-bottom:4px;font-size:13px;">Password</label>
+                        <input type="password" id="password" required style="width:100%;" />
+                    </div>
+
+                    <div style="display:flex;align-items:center;justify-content:space-between;font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+                        <div>
+                            <input type="checkbox" id="remember" style="width:auto;margin-right:2px;" />
+                            <label for="remember">Remember me</label>
+                        </div>
+                        <a href="#" style="color:#38bdf8;text-decoration:none;">Forgot password?</a>
+                    </div>
+
+                    <button type="submit" style="margin-top:0;width:100%;">Login</button>
+                </form>
+
+                <p id="login-msg" class="alert" style="display:none;margin-top:10px;max-width:360px;"></p>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        async function handleLogin(event) {
+            event.preventDefault();
+
+            const username = document.getElementById("userid").value;
+            const password = document.getElementById("password").value;
+            const msg = document.getElementById("login-msg");
+            msg.style.display = "none";
+
+            const body = new URLSearchParams();
+            body.append("grant_type", "password");
+            body.append("username", username);
+            body.append("password", password);
+            body.append("scope", "");
+            body.append("client_id", "");
+            body.append("client_secret", "");
+
+            try {
+                const res = await fetch(API_BASE + "/api/login", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "accept": "application/json"
+                    },
+                    body: body.toString()
+                });
+
+                if (!res.ok) {
+                    msg.textContent = "Invalid username or password.";
+                    msg.className = "alert error";
+                    msg.style.display = "block";
+                    return;
+                }
+
+                const data = await res.json();
+
+                localStorage.setItem("access_token", data.access_token);
+                localStorage.setItem("role", data.role);
+
+                msg.textContent = "Login successful. Redirecting…";
+                msg.className = "alert success";
+                msg.style.display = "block";
+
+                if (data.role === "admin") {
+                    window.location.href = "admin.html";
+                } else {
+                    window.location.href = "student.html";
+                }
+            } catch (e) {
+                msg.textContent = "Could not reach server. Please try again.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        document.getElementById("loginForm").addEventListener("submit", handleLogin);
+    </script>
+</body>
+
+</html>

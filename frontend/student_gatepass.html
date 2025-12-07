@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Student – Gate Pass</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <header>Student – Gate Pass</header>
+
+    <div class="page">
+        <nav>
+            <h2>Menu</h2>
+            <ul>
+                <li><a href="student.html">Dashboard</a></li>
+                <li><a href="student_room.html">My Room</a></li>
+                <li><a href="student_maintenance.html">Maintenance</a></li>
+                <li><a href="student_mess.html">Mess</a></li>
+                <li><a href="student_hostel_attendance.html">Hostel Attendance</a></li>
+                <li><a href="student_fees.html">Fees</a></li>
+                <li><a href="student_documents.html">Documents</a></li>
+                <li><a href="student_gatepass.html" class="active">Gate Pass</a></li>
+            </ul>
+            <p id="info" style="font-size:13px; margin-top:16px;">Welcome, student.</p>
+            <button onclick="logout()" style="margin-top:8px;">Logout</button>
+        </nav>
+
+        <main>
+            <section class="card" id="gatepass">
+                <h2>Gate Pass</h2>
+                <p>Request permission to leave the hostel and track your past gate passes.</p>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:14px 0;">
+                    <div class="info-tile">
+                        <div class="label">Total Requests</div>
+                        <div class="value" id="tile-total-gp">0</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Approved</div>
+                        <div class="value" id="tile-approved-gp">0</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Pending</div>
+                        <div class="value" id="tile-pending-gp">0</div>
+                    </div>
+                </div>
+
+                <h3>Request Gate Pass</h3>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:6px;">
+                    <input id="gp-from" type="date" />
+                    <input id="gp-to" type="date" />
+                    <input id="gp-reason" placeholder="Reason" style="flex:1;min-width:180px;" />
+                    <button onclick="createGatePass()">Submit Gate Pass</button>
+                </div>
+                <div id="create-gp-msg" class="alert" style="display:none;"></div>
+
+                <h3 style="margin-top:10px;">My Gate Passes</h3>
+                <button onclick="loadMyGatePasses()">Refresh My Gate Passes</button>
+                <div id="list-gp-msg" class="alert" style="display:none;margin-top:6px;"></div>
+
+                <div id="gp-list" style="margin-top:8px;font-size:13px;color:var(--text-muted);">
+                    No gate pass requests yet.
+                </div>
+
+                <details style="margin-top:10px;font-size:12px;color:var(--text-muted);">
+                    <summary>Technical details (JSON)</summary>
+                    <pre id="my-gatepasses" style="margin-top:6px;">[]</pre>
+                </details>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        // Create gate pass – student
+        async function createGatePass() {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("create-gp-msg");
+            msg.style.display = "none";
+
+            const body = {
+                from_date: document.getElementById("gp-from").value,
+                to_date: document.getElementById("gp-to").value,
+                reason: document.getElementById("gp-reason").value,
+            };
+
+            if (!body.from_date || !body.to_date || !body.reason) {
+                msg.textContent = "Please fill from date, to date and reason.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+                return;
+            }
+
+            try {
+                const res = await fetch(API_BASE + "/api/gatepass/", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: "Bearer " + token,
+                    },
+                    body: JSON.stringify(body),
+                });
+
+                if (res.status === 401) {
+                    localStorage.removeItem("access_token");
+                    localStorage.removeItem("role");
+                    window.location.href = "index.html";
+                    return;
+                }
+
+                if (!res.ok) {
+                    throw new Error("Failed");
+                }
+
+                msg.textContent = "Gate pass request submitted.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+                await loadMyGatePasses();
+            } catch (err) {
+                msg.textContent = "Failed to submit gate pass.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        // Load student's gate passes
+        async function loadMyGatePasses() {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("list-gp-msg");
+            msg.style.display = "none";
+
+            try {
+                const res = await fetch(API_BASE + "/api/gatepass/my", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+
+                if (res.status === 401) {
+                    localStorage.removeItem("access_token");
+                    localStorage.removeItem("role");
+                    window.location.href = "index.html";
+                    return;
+                }
+                if (!res.ok) throw new Error("Failed to load gate passes");
+
+                const data = await res.json();
+
+                document.getElementById("my-gatepasses").textContent = JSON.stringify(
+                    data,
+                    null,
+                    2
+                );
+
+                const total = Array.isArray(data) ? data.length : 0;
+                const approved = Array.isArray(data) ?
+                    data.filter((g) => g.status === "approved").length :
+                    0;
+                const pending = Array.isArray(data) ?
+                    data.filter((g) => g.status === "pending").length :
+                    0;
+
+                document.getElementById("tile-total-gp").textContent = total;
+                document.getElementById("tile-approved-gp").textContent = approved;
+                document.getElementById("tile-pending-gp").textContent = pending;
+
+                const listDiv = document.getElementById("gp-list");
+                if (!Array.isArray(data) || data.length === 0) {
+                    listDiv.textContent = "No gate pass requests yet.";
+                } else {
+                    listDiv.innerHTML = data
+                        .map((g) => {
+                            const from = g.from_date || g.from || "-";
+                            const to = g.to_date || g.to || "-";
+                            const reason = g.reason || "(no reason)";
+                            const status = g.status || "unknown";
+                            const created = g.created_at || g.created || "";
+                            const badgeClass =
+                                status === "approved" ?
+                                "badge-success" :
+                                status === "pending" ?
+                                "badge-warning" :
+                                "badge-error";
+                            return (
+                                '<div style="padding:8px 10px;border-radius:var(--radius-md);border:1px solid rgba(55,65,81,0.7);margin-bottom:6px;">' +
+                                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">' +
+                                '<span style="font-weight:600;">' +
+                                from +
+                                " → " +
+                                to +
+                                "</span>" +
+                                '<span class="' +
+                                badgeClass +
+                                '" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' +
+                                status +
+                                "</span>" +
+                                "</div>" +
+                                '<div style="font-size:12px;color:var(--text-muted);">' +
+                                reason +
+                                (created ? " • requested on " + created : "") +
+                                "</div>" +
+                                "</div>"
+                            );
+                        })
+                        .join("");
+                }
+
+                msg.textContent = "Gate passes loaded.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+            } catch (err) {
+                msg.textContent = "Failed to load gate passes.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        // Auth check
+        async function checkAccess() {
+            const token = localStorage.getItem("access_token");
+            if (!token) {
+                window.location.href = "index.html";
+                return;
+            }
+
+            try {
+                const res = await fetch(API_BASE + "/api/me", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+
+                if (!res.ok) {
+                    window.location.href = "index.html";
+                    return;
+                }
+
+                const data = await res.json();
+
+                if (data.role !== "student") {
+                    document.getElementById("info").textContent =
+                        "You are not student (role: " + data.role + ")";
+                } else {
+                    document.getElementById("info").textContent =
+                        "Welcome, student " + data.username;
+                    await loadMyGatePasses();
+                }
+            } catch (err) {
+                window.location.href = "index.html";
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("role");
+            window.location.href = "index.html";
+        }
+
+        checkAccess();
+    </script>
+</body>
+
+</html>

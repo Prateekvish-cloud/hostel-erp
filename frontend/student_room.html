@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Student – My Room</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <header>Student – My Room</header>
+
+    <div class="page">
+        <nav>
+            <h2>Menu</h2>
+            <ul>
+                <li><a href="student.html">Dashboard</a></li>
+                <li><a href="student_room.html" class="active">My Room</a></li>
+                <li><a href="student_maintenance.html">Maintenance</a></li>
+                <li><a href="student_mess.html">Mess</a></li>
+                <li><a href="student_hostel_attendance.html">Hostel Attendance</a></li>
+                <li><a href="student_fees.html">Fees</a></li>
+                <li><a href="student_documents.html">Documents</a></li>
+                <li><a href="student_gatepass.html">Gate Pass</a></li>
+            </ul>
+            <p id="info" style="font-size:13px; margin-top:16px;">Welcome, student.</p>
+            <button onclick="logout()" style="margin-top:8px;">Logout</button>
+        </nav>
+
+        <main>
+            <section class="card">
+                <h2>My Room</h2>
+                <p>Your current hostel room, basic details and roommate overview.</p>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:14px 0;">
+                    <div class="info-tile">
+                        <div class="label">Room Number</div>
+                        <div class="value" id="stat-room-number">—</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Block / Floor</div>
+                        <div class="value" id="stat-block">—</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Roommates</div>
+                        <div class="value" id="stat-roommates-count">0</div>
+                    </div>
+                </div>
+
+                <h3>Facilities in this room</h3>
+                <ul style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px;list-style:none;padding-left:0;font-size:13px;color:var(--text-muted);margin:8px 0 14px;">
+                    <li>• Study table & chair</li>
+                    <li>• Cupboard / storage</li>
+                    <li>• Fan & lighting</li>
+                    <li>• Common washroom access</li>
+                </ul>
+
+                <h3>Room rules & timings</h3>
+                <ul style="list-style:none;padding-left:0;font-size:13px;color:var(--text-muted);margin:6px 0 14px;">
+                    <li>• Night quiet hours: 10:00 PM – 6:00 AM.</li>
+                    <li>• Guests allowed only with warden approval.</li>
+                    <li>• Keep common areas clean and switch off lights when leaving.</li>
+                </ul>
+
+                <h3>Roommates</h3>
+                <p style="font-size:13px;color:var(--text-muted);margin-bottom:6px;">
+                    Roommate list will appear here once backend is connected.
+                </p>
+                <div id="roommates-list" style="font-size:13px;color:var(--text-muted);margin-bottom:14px;">
+                    No roommates loaded.
+                </div>
+
+                <button onclick="loadMyRoom()" id="refresh-btn">Refresh Room Details</button>
+                <div id="message" class="alert" style="display:none;margin-top:8px;"></div>
+
+                <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;font-size:13px;">
+                    <button onclick="location.href='student_maintenance.html'">
+                        Raise maintenance request
+                    </button>
+                    <button onclick="location.href='student_gatepass.html'">
+                        Request gate pass
+                    </button>
+                </div>
+
+                <details style="margin-top:10px;font-size:12px;color:var(--text-muted);">
+                    <summary>Technical details (JSON)</summary>
+                    <pre id="my-room" style="margin-top:6px;"></pre>
+                </details>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        // TEMP version: no backend /api/rooms/my-room yet
+        async function loadMyRoom() {
+            const refreshBtn = document.getElementById("refresh-btn");
+            const message = document.getElementById("message");
+            const pre = document.getElementById("my-room");
+
+            message.style.display = "none";
+            refreshBtn.disabled = true;
+
+            try {
+                const sampleRoom = {
+                    room_number: "Not linked",
+                    block: "Use My Room page",
+                    roommates: []
+                };
+
+                document.getElementById("stat-room-number").textContent =
+                    sampleRoom.room_number;
+                document.getElementById("stat-block").textContent =
+                    sampleRoom.block;
+                document.getElementById("stat-roommates-count").textContent =
+                    sampleRoom.roommates.length;
+
+                const rmDiv = document.getElementById("roommates-list");
+                if (sampleRoom.roommates.length === 0) {
+                    rmDiv.textContent = "No roommates data available.";
+                } else {
+                    rmDiv.textContent = sampleRoom.roommates.join(", ");
+                }
+
+                pre.textContent = JSON.stringify(sampleRoom, null, 2);
+
+                message.textContent = "Room details are not connected to backend yet.";
+                message.className = "alert info";
+                message.style.display = "block";
+            } catch (err) {
+                pre.textContent = "";
+                message.textContent =
+                    "Failed to prepare room details on this page.";
+                message.className = "alert error";
+                message.style.display = "block";
+            } finally {
+                refreshBtn.disabled = false;
+            }
+        }
+
+        async function checkAccess() {
+            const token = localStorage.getItem("access_token");
+            if (!token) {
+                window.location.href = "index.html";
+                return;
+            }
+            try {
+                const res = await fetch(API_BASE + "/api/me", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+                if (!res.ok) {
+                    window.location.href = "index.html";
+                    return;
+                }
+                const data = await res.json();
+                if (data.role !== "student") {
+                    document.getElementById("info").textContent =
+                        "You are not student (role: " + data.role + ")";
+                } else {
+                    document.getElementById("info").textContent =
+                        "Welcome, student " + data.username;
+                    await loadMyRoom();
+                }
+            } catch {
+                window.location.href = "index.html";
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("role");
+            window.location.href = "index.html";
+        }
+
+        checkAccess();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Admin – Hostel Attendance</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <header>Admin – Hostel Attendance</header>
+
+    <div class="page">
+        <nav>
+            <h2>Menu</h2>
+            <ul>
+                <li><a href="admin.html">Dashboard</a></li>
+                <li><a href="admin_rooms.html">Rooms</a></li>
+                <li><a href="admin_maintenance.html">Maintenance</a></li>
+                <li><a href="admin_mess.html">Mess</a></li>
+                <li><a href="admin_hostel_attendance.html" class="active">Hostel Attendance</a></li>
+                <li><a href="admin_fees.html">Fees</a></li>
+                <li><a href="admin_documents.html">Documents</a></li>
+                <li><a href="admin_gatepass.html">Gate Pass</a></li>
+            </ul>
+            <div style="margin-top:20px;">
+                <div id="datetime" style="font-size:14px;color:var(--text-muted);margin-bottom:8px;"></div>
+                <p id="info" style="font-size:13px;">Welcome, admin.</p>
+                <button onclick="logout()" style="margin-top:8px;">Logout</button>
+            </div>
+        </nav>
+
+        <main>
+            <section class="card" id="hostel-attendance">
+                <h2>Hostel Attendance</h2>
+                <p>Mark daily in‑hostel status and view per‑day attendance breakdown.</p>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin:14px 0;">
+                    <div class="info-tile">
+                        <div class="label">Selected Day</div>
+                        <div class="value" id="tile-day">—</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Present</div>
+                        <div class="value" id="tile-present">0</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Absent</div>
+                        <div class="value" id="tile-absent">0</div>
+                    </div>
+                </div>
+
+                <h3>Mark student</h3>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                    <input id="ha-day" type="date" />
+                    <input id="ha-username" placeholder="student username" />
+                    <button onclick="markHostel(true)">Mark Present</button>
+                    <button onclick="markHostel(false)">Mark Absent</button>
+                </div>
+                <div id="mark-msg" class="alert" style="display:none;margin-top:6px;"></div>
+
+                <h3 style="margin-top:12px;">Day attendance</h3>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                    <input id="ha-day-view" type="date" />
+                    <button onclick="loadHostelDay()">View</button>
+                </div>
+                <div id="day-msg" class="alert" style="display:none;margin-top:6px;"></div>
+
+                <div id="ha-day-list-pretty" style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+                    No records loaded yet.
+                </div>
+
+                <details style="margin-top:10px;font-size:12px;color:var(--text-muted);">
+                    <summary>Technical details (JSON)</summary>
+                    <pre id="ha-day-list" style="margin-top:6px;">{}</pre>
+                </details>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        function updateDateTime() {
+            const now = new Date();
+            const options = {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            };
+            document.getElementById('datetime').textContent =
+                now.toLocaleDateString('en-IN', options);
+        }
+
+        async function checkAccess() {
+            const token = localStorage.getItem("access_token");
+            if (!token) {
+                window.location.href = "index.html";
+                return;
+            }
+
+            try {
+                const res = await fetch(API_BASE + "/api/me", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+
+                if (!res.ok) {
+                    window.location.href = "index.html";
+                    return;
+                }
+
+                const data = await res.json();
+
+                if (data.role !== "admin") {
+                    document.getElementById("info").textContent =
+                        "You are not admin (role: " + data.role + ")";
+                } else {
+                    document.getElementById("info").textContent =
+                        "Welcome, admin " + data.username;
+                    updateDateTime();
+                    setInterval(updateDateTime, 60000);
+                }
+            } catch (err) {
+                window.location.href = "index.html";
+            }
+        }
+
+        async function markHostel(present) {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("mark-msg");
+            msg.style.display = "none";
+
+            const body = {
+                day: document.getElementById("ha-day").value,
+                username: document.getElementById("ha-username").value,
+                present: present,
+            };
+
+            if (!body.day || !body.username) {
+                msg.textContent = "Select a day and enter student username.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+                return;
+            }
+
+            try {
+                await fetch(API_BASE + "/api/hostel-attendance/mark", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: "Bearer " + token,
+                    },
+                    body: JSON.stringify(body),
+                });
+                msg.textContent = present ?
+                    "Marked student as present." :
+                    "Marked student as absent.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+            } catch (err) {
+                msg.textContent = "Failed to mark attendance.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        async function loadHostelDay() {
+            const token = localStorage.getItem("access_token");
+            const day = document.getElementById("ha-day-view").value;
+            const msg = document.getElementById("day-msg");
+            msg.style.display = "none";
+
+            if (!day) {
+                msg.textContent = "Select a day to view attendance.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+                return;
+            }
+
+            try {
+                const res = await fetch(
+                    API_BASE + "/api/hostel-attendance/day?day=" + encodeURIComponent(day), {
+                        headers: {
+                            Authorization: "Bearer " + token
+                        }
+                    });
+                if (!res.ok) throw new Error("Failed to load attendance for the day");
+
+                const data = await res.json();
+                document.getElementById("ha-day-list").textContent =
+                    JSON.stringify(data, null, 2);
+
+                const arr = Array.isArray(data) ? data : [];
+                const present = arr.filter((d) => d.present === true).length;
+                const total = arr.length;
+                const absent = total - present;
+
+                document.getElementById("tile-day").textContent = day || "—";
+                document.getElementById("tile-present").textContent = present;
+                document.getElementById("tile-absent").textContent = absent;
+
+                const listDiv = document.getElementById("ha-day-list-pretty");
+                if (arr.length === 0) {
+                    listDiv.textContent = "No attendance records for this day.";
+                } else {
+                    const sorted = [...arr].sort((a, b) => {
+                        if (a.present === b.present) return 0;
+                        return a.present ? -1 : 1;
+                    });
+                    listDiv.innerHTML = sorted
+                        .map((d) => {
+                            const user = d.username || d.student || "-";
+                            const status = d.present === true ? "Present" : "Absent";
+                            const badgeClass =
+                                d.present === true ? "badge-success" : "badge-error";
+                            return (
+                                '<div style="padding:6px 8px;border-radius:var(--radius-md);border:1px solid rgba(55,65,81,0.7);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;">' +
+                                '<span>' +
+                                user +
+                                "</span>" +
+                                '<span class="' +
+                                badgeClass +
+                                '" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' +
+                                status +
+                                "</span>" +
+                                "</div>"
+                            );
+                        })
+                        .join("");
+                }
+
+                msg.textContent = "Attendance loaded for selected day.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+            } catch (err) {
+                msg.textContent = "Failed to load attendance.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("role");
+            window.location.href = "index.html";
+        }
+
+        checkAccess();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Admin – Fees</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <header>Admin – Fees</header>
+
+    <div class="page">
+        <nav>
+            <h2>Menu</h2>
+            <ul>
+                <li><a href="admin.html">Dashboard</a></li>
+                <li><a href="admin_rooms.html">Rooms</a></li>
+                <li><a href="admin_maintenance.html">Maintenance</a></li>
+                <li><a href="admin_mess.html">Mess</a></li>
+                <li><a href="admin_hostel_attendance.html">Hostel Attendance</a></li>
+                <li><a href="admin_fees.html" class="active">Fees</a></li>
+                <li><a href="admin_documents.html">Documents</a></li>
+                <li><a href="admin_gatepass.html">Gate Pass</a></li>
+            </ul>
+            <div style="margin-top:20px;">
+                <div id="datetime" style="font-size:14px;color:var(--text-muted);margin-bottom:8px;"></div>
+                <p id="info" style="font-size:13px;">Welcome, admin.</p>
+                <button onclick="logout()" style="margin-top:8px;">Logout</button>
+            </div>
+        </nav>
+
+        <main>
+            <section class="card" id="fees">
+                <h2>Fees & Payments</h2>
+                <p>Manage hostel fee dues and record payments for all students.</p>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin:14px 0;">
+                    <div class="info-tile">
+                        <div class="label">Total Due (All)</div>
+                        <div class="value" id="tile-total-due">₹0</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Total Collected</div>
+                        <div class="value" id="tile-total-paid">₹0</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Students</div>
+                        <div class="value" id="tile-students">0</div>
+                    </div>
+                </div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin:14px 0;">
+                    <div>
+                        <h3>Set fee due</h3>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                            <input id="fee-username" placeholder="student username" />
+                            <input id="fee-amount" type="number" placeholder="Total due" />
+                            <button onclick="setFeeDue()">Save Due</button>
+                        </div>
+                        <div id="due-msg" class="alert" style="display:none;margin-top:6px;"></div>
+                    </div>
+
+                    <div>
+                        <h3>Record payment</h3>
+                        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;">
+                            <input id="pay-username" placeholder="student username" />
+                            <input id="pay-amount" type="number" placeholder="Amount paid" />
+                            <button onclick="recordPayment()">Record Payment</button>
+                        </div>
+                        <div id="pay-msg" class="alert" style="display:none;margin-top:6px;"></div>
+                    </div>
+                </div>
+
+                <h3 style="margin-top:12px;">All fees</h3>
+                <button onclick="loadAllFees()">Refresh Fees</button>
+                <div id="fees-msg" class="alert" style="display:none;margin-top:6px;"></div>
+
+                <div id="fees-list-pretty" style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+                    No fee records loaded yet.
+                </div>
+
+                <details style="margin-top:10px;font-size:12px;color:var(--text-muted);">
+                    <summary>Technical details (JSON)</summary>
+                    <pre id="fees-list" style="margin-top:6px;">[]</pre>
+                </details>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        function updateDateTime() {
+            const now = new Date();
+            const options = {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true
+            };
+            document.getElementById('datetime').textContent =
+                now.toLocaleDateString('en-IN', options);
+        }
+
+        async function checkAccess() {
+            const token = localStorage.getItem("access_token");
+            if (!token) {
+                window.location.href = "index.html";
+                return;
+            }
+
+            try {
+                const res = await fetch(API_BASE + "/api/me", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+
+                if (!res.ok) {
+                    window.location.href = "index.html";
+                    return;
+                }
+
+                const data = await res.json();
+
+                if (data.role !== "admin") {
+                    document.getElementById("info").textContent =
+                        "You are not admin (role: " + data.role + ")";
+                } else {
+                    document.getElementById("info").textContent =
+                        "Welcome, admin " + data.username;
+                    updateDateTime();
+                    setInterval(updateDateTime, 60000);
+                    await loadAllFees();
+                }
+            } catch (err) {
+                window.location.href = "index.html";
+            }
+        }
+
+        async function setFeeDue() {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("due-msg");
+            msg.style.display = "none";
+
+            const body = {
+                username: document.getElementById("fee-username").value,
+                amount: parseFloat(document.getElementById("fee-amount").value || "0"),
+            };
+
+            if (!body.username || !body.amount) {
+                msg.textContent = "Enter student username and due amount.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+                return;
+            }
+
+            try {
+                await fetch(API_BASE + "/api/fees/set-due", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: "Bearer " + token,
+                    },
+                    body: JSON.stringify(body),
+                });
+                msg.textContent = "Fee due saved.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+                await loadAllFees();
+            } catch (err) {
+                msg.textContent = "Failed to save fee due.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        async function recordPayment() {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("pay-msg");
+            msg.style.display = "none";
+
+            const body = {
+                username: document.getElementById("pay-username").value,
+                amount: parseFloat(document.getElementById("pay-amount").value || "0"),
+            };
+
+            if (!body.username || !body.amount) {
+                msg.textContent = "Enter student username and payment amount.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+                return;
+            }
+
+            try {
+                await fetch(API_BASE + "/api/fees/pay", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: "Bearer " + token,
+                    },
+                    body: JSON.stringify(body),
+                });
+                msg.textContent = "Payment recorded.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+                await loadAllFees();
+            } catch (err) {
+                msg.textContent = "Failed to record payment.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        async function loadAllFees() {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("fees-msg");
+            msg.style.display = "none";
+
+            try {
+                const res = await fetch(API_BASE + "/api/fees/all", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+                if (!res.ok) throw new Error("Failed to load fees");
+                const data = await res.json();
+
+                document.getElementById("fees-list").textContent =
+                    JSON.stringify(data, null, 2);
+
+                const arr = Array.isArray(data) ? data : [];
+                const students = arr.length;
+                let totalDue = 0;
+                let totalPaid = 0;
+
+                arr.forEach((f) => {
+                    totalDue += f.total_due || 0;
+                    const pays = Array.isArray(f.payments) ? f.payments : [];
+                    totalPaid += pays.reduce((s, p) => s + (p.amount || 0), 0);
+                });
+
+                document.getElementById("tile-total-due").textContent = "₹" + totalDue;
+                document.getElementById("tile-total-paid").textContent = "₹" + totalPaid;
+                document.getElementById("tile-students").textContent = students;
+
+                const listDiv = document.getElementById("fees-list-pretty");
+                if (arr.length === 0) {
+                    listDiv.textContent = "No fee records yet.";
+                } else {
+                    const sorted = [...arr].sort((a, b) => (b.total_due || 0) - (a.total_due || 0));
+                    listDiv.innerHTML = sorted
+                        .map((f) => {
+                            const name = f.username || f.student || "-";
+                            const due = f.total_due || 0;
+                            const payments = Array.isArray(f.payments) ? f.payments : [];
+                            const paid = payments.reduce((s, p) => s + (p.amount || 0), 0);
+                            const badgeClass = due === 0 ? "badge-success" : "badge-warning";
+                            return (
+                                '<div style="padding:8px 10px;border-radius:var(--radius-md);border:1px solid rgba(55,65,81,0.7);margin-bottom:6px;">' +
+                                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">' +
+                                '<span style="font-weight:600;">' +
+                                name +
+                                "</span>" +
+                                '<span class="' +
+                                badgeClass +
+                                '" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' +
+                                (due === 0 ? "Cleared" : "Due") +
+                                "</span>" +
+                                "</div>" +
+                                '<div style="font-size:12px;color:var(--text-muted);">Due: ₹' +
+                                due +
+                                " • Paid: ₹" +
+                                paid +
+                                (payments.length ? " (" + payments.length + " payments)" : "") +
+                                "</div>" +
+                                "</div>"
+                            );
+                        })
+                        .join("");
+                }
+
+                msg.textContent = "Fees loaded.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+            } catch (err) {
+                msg.textContent = "Failed to load fees.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("role");
+            window.location.href = "index.html";
+        }
+
+        checkAccess();
+    </script>
+</body>
+
+</html>

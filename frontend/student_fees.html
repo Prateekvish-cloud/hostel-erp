@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Student – Fees</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <header>Student – Fees</header>
+
+    <div class="page">
+        <nav>
+            <h2>Menu</h2>
+            <ul>
+                <li><a href="student.html">Dashboard</a></li>
+                <li><a href="student_room.html">My Room</a></li>
+                <li><a href="student_maintenance.html">Maintenance</a></li>
+                <li><a href="student_mess.html">Mess</a></li>
+                <li><a href="student_hostel_attendance.html">Hostel Attendance</a></li>
+                <li><a href="student_fees.html" class="active">Fees</a></li>
+                <li><a href="student_documents.html">Documents</a></li>
+                <li><a href="student_gatepass.html">Gate Pass</a></li>
+            </ul>
+            <p id="info" style="font-size:13px; margin-top:16px;">Welcome, student.</p>
+            <button onclick="logout()" style="margin-top:8px;">Logout</button>
+        </nav>
+
+        <main>
+            <section class="card" id="fees">
+                <h2>Fees</h2>
+                <p style="margin:4px 0 8px; font-size:14px;">
+                    View your current hostel fee due and payment history.
+                </p>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:14px 0;">
+                    <div class="info-tile">
+                        <div class="label">Total Due</div>
+                        <div class="value" id="tile-total-due">₹0</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Total Paid</div>
+                        <div class="value" id="tile-total-paid">₹0</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Payments Count</div>
+                        <div class="value" id="tile-payments-count">0</div>
+                    </div>
+                </div>
+
+                <button onclick="loadMyFees()">Refresh My Fees</button>
+                <div id="fees-msg" class="alert" style="display:none;margin-top:6px;"></div>
+
+                <h3 style="margin-top:10px;">Payment history</h3>
+                <div id="payments-list" style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+                    No payments recorded yet.
+                </div>
+
+                <details style="margin-top:10px;font-size:12px;color:var(--text-muted);">
+                    <summary>Technical details (JSON)</summary>
+                    <pre id="my-fees" style="margin-top:6px;">{"total_due": 0}</pre>
+                </details>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        // Fees – student view
+        async function loadMyFees() {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("fees-msg");
+            msg.style.display = "none";
+
+            try {
+                const res = await fetch(API_BASE + "/api/fees/my", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+
+                if (res.status === 401) {
+                    localStorage.removeItem("access_token");
+                    localStorage.removeItem("role");
+                    window.location.href = "index.html";
+                    return;
+                }
+                if (!res.ok) throw new Error("Failed to load fees");
+
+                const data = await res.json();
+                document.getElementById("my-fees").textContent = JSON.stringify(
+                    data,
+                    null,
+                    2
+                );
+
+                const totalDue =
+                    data.total_due !== null && data.total_due !== undefined ?
+                    data.total_due :
+                    0;
+                const payments = Array.isArray(data.payments) ? data.payments : [];
+                const totalPaid = payments.reduce(
+                    (sum, p) => sum + (p.amount || 0),
+                    0
+                );
+
+                document.getElementById("tile-total-due").textContent = "₹" + totalDue;
+                document.getElementById("tile-total-paid").textContent = "₹" + totalPaid;
+                document.getElementById("tile-payments-count").textContent =
+                    payments.length;
+
+                const listDiv = document.getElementById("payments-list");
+                if (payments.length === 0) {
+                    listDiv.textContent = "No payments recorded yet.";
+                } else {
+                    listDiv.innerHTML = payments
+                        .map((p) => {
+                            const amount = p.amount || 0;
+                            const date = p.timestamp || "-";
+                            return (
+                                '<div style="padding:8px 10px;border-radius:var(--radius-md);border:1px solid rgba(55,65,81,0.7);margin-bottom:6px;">' +
+                                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">' +
+                                '<span style="font-weight:600;">₹' +
+                                amount +
+                                "</span>" +
+                                '<span style="font-size:12px;color:var(--text-muted);">' +
+                                date +
+                                "</span>" +
+                                "</div>" +
+                                "</div>"
+                            );
+                        })
+                        .join("");
+                }
+
+                msg.textContent = "Fee details loaded.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+            } catch (err) {
+                msg.textContent = "Failed to load fee details. Please try again.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        async function checkAccess() {
+            const token = localStorage.getItem("access_token");
+            if (!token) {
+                window.location.href = "index.html";
+                return;
+            }
+
+            try {
+                const res = await fetch(API_BASE + "/api/me", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+
+                if (!res.ok) {
+                    window.location.href = "index.html";
+                    return;
+                }
+
+                const data = await res.json();
+
+                if (data.role !== "student") {
+                    document.getElementById("info").textContent =
+                        "You are not student (role: " + data.role + ")";
+                } else {
+                    document.getElementById("info").textContent =
+                        "Welcome, student " + data.username;
+                    await loadMyFees();
+                }
+            } catch (err) {
+                window.location.href = "index.html";
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("role");
+            window.location.href = "index.html";
+        }
+
+        checkAccess();
+    </script>
+</body>
+
+</html>

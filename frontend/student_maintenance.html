@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Student – Maintenance</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <header>Student – Maintenance</header>
+
+    <div class="page">
+        <nav>
+            <h2>Menu</h2>
+            <ul>
+                <li><a href="student.html">Dashboard</a></li>
+                <li><a href="student_room.html">My Room</a></li>
+                <li><a href="student_maintenance.html" class="active">Maintenance</a></li>
+                <li><a href="student_mess.html">Mess</a></li>
+                <li><a href="student_hostel_attendance.html">Hostel Attendance</a></li>
+                <li><a href="student_fees.html">Fees</a></li>
+                <li><a href="student_documents.html">Documents</a></li>
+                <li><a href="student_gatepass.html">Gate Pass</a></li>
+            </ul>
+            <p id="info" style="font-size:13px; margin-top:16px;">Welcome, student.</p>
+            <button onclick="logout()" style="margin-top:8px;">Logout</button>
+        </nav>
+
+        <main>
+            <section class="card" id="maintenance">
+                <h2>Maintenance Requests</h2>
+                <p>Create a ticket when something in your room or hostel needs fixing.</p>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:14px 0;">
+                    <div class="info-tile">
+                        <div class="label">Total Tickets</div>
+                        <div class="value" id="tile-total">0</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Open</div>
+                        <div class="value" id="tile-open">0</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Resolved</div>
+                        <div class="value" id="tile-resolved">0</div>
+                    </div>
+                </div>
+
+                <h3>Create Request</h3>
+                <div>
+                    <input id="m-room" placeholder="Room number" />
+                    <input id="m-title" placeholder="Title" />
+                    <br />
+                    <textarea id="m-desc" placeholder="Describe the issue" rows="3" cols="40"></textarea>
+                    <br />
+                    <button onclick="createTicket()">Submit Request</button>
+                </div>
+                <div id="create-msg" class="alert" style="display:none;"></div>
+
+                <h3 style="margin-top:10px;">My Tickets</h3>
+                <button onclick="loadMyTickets()">Refresh My Tickets</button>
+                <div id="tickets-msg" class="alert" style="display:none;margin-top:6px;"></div>
+
+                <div id="tickets-list" style="margin-top:8px;font-size:13px;color:var(--text-muted);">
+                    No tickets yet.
+                </div>
+
+                <details style="margin-top:10px;font-size:12px;color:var(--text-muted);">
+                    <summary>Technical details (JSON)</summary>
+                    <pre id="my-tickets" style="margin-top:6px;">[]</pre>
+                </details>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        async function createTicket() {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("create-msg");
+            msg.style.display = "none";
+
+            const body = {
+                room_number: document.getElementById("m-room").value,
+                title: document.getElementById("m-title").value,
+                description: document.getElementById("m-desc").value,
+            };
+
+            if (!body.room_number || !body.title || !body.description) {
+                msg.textContent = "Please fill room number, title and description.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+                return;
+            }
+
+            try {
+                const res = await fetch(API_BASE + "/api/maintenance/", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: "Bearer " + token,
+                    },
+                    body: JSON.stringify(body),
+                });
+
+                if (res.status === 401) {
+                    localStorage.removeItem("access_token");
+                    localStorage.removeItem("role");
+                    window.location.href = "index.html";
+                    return;
+                }
+                if (!res.ok) throw new Error("Failed");
+
+                msg.textContent = "Maintenance request submitted.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+                document.getElementById("m-desc").value = "";
+                await loadMyTickets();
+            } catch (err) {
+                msg.textContent = "Failed to submit request.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        async function loadMyTickets() {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("tickets-msg");
+            msg.style.display = "none";
+
+            try {
+                const res = await fetch(API_BASE + "/api/maintenance/my", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+
+                if (res.status === 401) {
+                    localStorage.removeItem("access_token");
+                    localStorage.removeItem("role");
+                    window.location.href = "index.html";
+                    return;
+                }
+                if (!res.ok) throw new Error("Failed to load tickets");
+
+                const data = await res.json();
+
+                document.getElementById("my-tickets").textContent = JSON.stringify(
+                    data,
+                    null,
+                    2
+                );
+
+                const total = Array.isArray(data) ? data.length : 0;
+                const open = Array.isArray(data) ?
+                    data.filter((t) => t.status === "open").length :
+                    0;
+                const resolved = Array.isArray(data) ?
+                    data.filter((t) => t.status === "resolved").length :
+                    0;
+
+                document.getElementById("tile-total").textContent = total;
+                document.getElementById("tile-open").textContent = open;
+                document.getElementById("tile-resolved").textContent = resolved;
+
+                const listDiv = document.getElementById("tickets-list");
+                if (!Array.isArray(data) || data.length === 0) {
+                    listDiv.textContent = "No tickets yet.";
+                } else {
+                    listDiv.innerHTML = data
+                        .map((t) => {
+                            const status = t.status || "unknown";
+                            const created = t.created_at || t.created || "";
+                            const room = t.room_number || "-";
+                            const title = t.title || "(no title)";
+                            const shortDesc =
+                                (t.description || "").length > 80 ?
+                                t.description.slice(0, 77) + "..." :
+                                (t.description || "");
+                            const badgeClass =
+                                status === "resolved" ?
+                                "badge-success" :
+                                status === "open" ?
+                                "badge-warning" :
+                                "badge-error";
+                            return (
+                                '<div style="padding:8px 10px;border-radius:var(--radius-md);border:1px solid rgba(55,65,81,0.7);margin-bottom:6px;">' +
+                                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">' +
+                                '<span style="font-weight:600;">' +
+                                title +
+                                "</span>" +
+                                '<span class="' +
+                                badgeClass +
+                                '" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' +
+                                status +
+                                "</span>" +
+                                "</div>" +
+                                '<div style="font-size:12px;color:var(--text-muted);">' +
+                                "Room " +
+                                room +
+                                (created ? " • " + created : "") +
+                                "</div>" +
+                                (shortDesc ?
+                                    '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">' +
+                                    shortDesc +
+                                    "</div>" :
+                                    "") +
+                                "</div>"
+                            );
+                        })
+                        .join("");
+                }
+
+                msg.textContent = "Tickets loaded.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+            } catch (err) {
+                msg.textContent = "Failed to load tickets.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        async function checkAccess() {
+            const token = localStorage.getItem("access_token");
+            if (!token) {
+                window.location.href = "index.html";
+                return;
+            }
+
+            try {
+                const res = await fetch(API_BASE + "/api/me", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+
+                if (!res.ok) {
+                    window.location.href = "index.html";
+                    return;
+                }
+
+                const data = await res.json();
+
+                if (data.role !== "student") {
+                    document.getElementById("info").textContent =
+                        "You are not student (role: " + data.role + ")";
+                } else {
+                    document.getElementById("info").textContent =
+                        "Welcome, student " + data.username;
+                    await loadMyTickets();
+                }
+            } catch (err) {
+                window.location.href = "index.html";
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("role");
+            window.location.href = "index.html";
+        }
+
+        checkAccess();
+    </script>
+</body>
+
+</html>

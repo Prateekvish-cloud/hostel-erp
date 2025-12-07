@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Student – Documents</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <header>Student – Documents</header>
+
+    <div class="page">
+        <nav>
+            <h2>Menu</h2>
+            <ul>
+                <li><a href="student.html">Dashboard</a></li>
+                <li><a href="student_room.html">My Room</a></li>
+                <li><a href="student_maintenance.html">Maintenance</a></li>
+                <li><a href="student_mess.html">Mess</a></li>
+                <li><a href="student_hostel_attendance.html">Hostel Attendance</a></li>
+                <li><a href="student_fees.html">Fees</a></li>
+                <li><a href="student_documents.html" class="active">Documents</a></li>
+                <li><a href="student_gatepass.html">Gate Pass</a></li>
+            </ul>
+            <p id="info" style="font-size:13px; margin-top:16px;">Welcome, student.</p>
+            <button onclick="logout()" style="margin-top:8px;">Logout</button>
+        </nav>
+
+        <main>
+            <section class="card" id="docs">
+                <h2>Documents</h2>
+                <p style="margin:4px 0 8px; font-size:14px;">
+                    View and manage the documents submitted for your hostel admission.
+                </p>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:14px 0;">
+                    <div class="info-tile">
+                        <div class="label">Total Documents</div>
+                        <div class="value" id="tile-doc-total">0</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Verified</div>
+                        <div class="value" id="tile-doc-verified">0</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Pending</div>
+                        <div class="value" id="tile-doc-pending">0</div>
+                    </div>
+                </div>
+
+                <button onclick="loadMyDocuments()">Refresh My Documents</button>
+                <div id="docs-msg" class="alert" style="display:none;margin-top:6px;"></div>
+
+                <h3 style="margin-top:10px;">Submitted documents</h3>
+                <div id="docs-list" style="font-size:13px;color:var(--text-muted);margin-top:4px;">
+                    No documents loaded yet.
+                </div>
+
+                <details style="margin-top:10px;font-size:12px;color:var(--text-muted);">
+                    <summary>Technical details (JSON)</summary>
+                    <pre id="my-docs" style="margin-top:6px;">[]</pre>
+                </details>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        // Documents – student view
+        async function loadMyDocuments() {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("docs-msg");
+            msg.style.display = "none";
+
+            try {
+                const res = await fetch(API_BASE + "/api/documents/my", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+
+                if (res.status === 401) {
+                    localStorage.removeItem("access_token");
+                    localStorage.removeItem("role");
+                    window.location.href = "index.html";
+                    return;
+                }
+                if (!res.ok) throw new Error("Failed to load documents");
+
+                const data = await res.json();
+                document.getElementById("my-docs").textContent = JSON.stringify(
+                    data,
+                    null,
+                    2
+                );
+
+                const docs = Array.isArray(data) ? data : [];
+                const total = docs.length;
+                const verified = docs.filter((d) => d.status === "verified").length;
+                const pending = docs.filter((d) => d.status === "pending").length;
+
+                document.getElementById("tile-doc-total").textContent = total;
+                document.getElementById("tile-doc-verified").textContent = verified;
+                document.getElementById("tile-doc-pending").textContent = pending;
+
+                const listDiv = document.getElementById("docs-list");
+                if (docs.length === 0) {
+                    listDiv.textContent =
+                        "No documents found. Please contact hostel office if this seems wrong.";
+                } else {
+                    listDiv.innerHTML = docs
+                        .map((d) => {
+                            const name = d.doc_type || "Document";
+                            const status = d.status || "unknown";
+                            const uploaded = d.uploaded_at || "-";
+                            const remark = d.comment || "";
+
+                            const badgeClass =
+                                status === "verified" ?
+                                "badge-success" :
+                                status === "pending" ?
+                                "badge-warning" :
+                                "badge-error";
+
+                            return (
+                                '<div style="padding:8px 10px;border-radius:var(--radius-md);border:1px solid rgba(55,65,81,0.7);margin-bottom:6px;">' +
+                                '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">' +
+                                '<span style="font-weight:600;">' +
+                                name +
+                                "</span>" +
+                                '<span class="' +
+                                badgeClass +
+                                '" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' +
+                                status +
+                                "</span>" +
+                                "</div>" +
+                                '<div style="font-size:12px;color:var(--text-muted);">Uploaded: ' +
+                                uploaded +
+                                "</div>" +
+                                (remark ?
+                                    '<div style="font-size:12px;color:var(--text-muted);margin-top:2px;">Remark: ' +
+                                    remark +
+                                    "</div>" :
+                                    "") +
+                                "</div>"
+                            );
+                        })
+                        .join("");
+                }
+
+                msg.textContent = "Documents loaded.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+            } catch (err) {
+                msg.textContent = "Failed to load documents. Please try again.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        async function checkAccess() {
+            const token = localStorage.getItem("access_token");
+            if (!token) {
+                window.location.href = "index.html";
+                return;
+            }
+
+            try {
+                const res = await fetch(API_BASE + "/api/me", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+
+                if (!res.ok) {
+                    window.location.href = "index.html";
+                    return;
+                }
+
+                const data = await res.json();
+
+                if (data.role !== "student") {
+                    document.getElementById("info").textContent =
+                        "You are not student (role: " + data.role + ")";
+                } else {
+                    document.getElementById("info").textContent =
+                        "Welcome, student " + data.username;
+                    await loadMyDocuments();
+                }
+            } catch (err) {
+                window.location.href = "index.html";
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("role");
+            window.location.href = "index.html";
+        }
+
+        checkAccess();
+    </script>
+</body>
+
+</html>

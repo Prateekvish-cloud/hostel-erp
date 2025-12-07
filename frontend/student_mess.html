@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Student – Mess</title>
+    <link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+    <header>Student – Mess</header>
+
+    <div class="page">
+        <nav>
+            <h2>Menu</h2>
+            <ul>
+                <li><a href="student.html">Dashboard</a></li>
+                <li><a href="student_room.html">My Room</a></li>
+                <li><a href="student_maintenance.html">Maintenance</a></li>
+                <li><a href="student_mess.html" class="active">Mess</a></li>
+                <li><a href="student_hostel_attendance.html">Hostel Attendance</a></li>
+                <li><a href="student_fees.html">Fees</a></li>
+                <li><a href="student_documents.html">Documents</a></li>
+                <li><a href="student_gatepass.html">Gate Pass</a></li>
+            </ul>
+            <p id="info" style="font-size:13px; margin-top:16px;">Welcome, student.</p>
+            <button onclick="logout()" style="margin-top:8px;">Logout</button>
+        </nav>
+
+        <main>
+            <section class="card" id="mess">
+                <h2>Mess – Today</h2>
+                <p>See today’s menu, mark attendance and give quick feedback.</p>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:14px 0;">
+                    <div class="info-tile">
+                        <div class="label">Breakfast</div>
+                        <div class="value" id="tile-breakfast">—</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Lunch</div>
+                        <div class="value" id="tile-lunch">—</div>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Dinner</div>
+                        <div class="value" id="tile-dinner">—</div>
+                    </div>
+                </div>
+
+                <h3>Today’s menu (details)</h3>
+                <button onclick="loadTodayMenuStudent()">Refresh Today Menu</button>
+                <div id="menu-message" class="alert" style="display:none;margin-top:6px;"></div>
+
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:10px;">
+                    <div class="info-tile">
+                        <div class="label">Breakfast items</div>
+                        <ul id="list-breakfast" style="margin-top:6px;font-size:13px;color:var(--text-muted);padding-left:16px;"></ul>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Lunch items</div>
+                        <ul id="list-lunch" style="margin-top:6px;font-size:13px;color:var(--text-muted);padding-left:16px;"></ul>
+                    </div>
+                    <div class="info-tile">
+                        <div class="label">Dinner items</div>
+                        <ul id="list-dinner" style="margin-top:6px;font-size:13px;color:var(--text-muted);padding-left:16px;"></ul>
+                    </div>
+                </div>
+
+                <details style="margin-top:10px;font-size:12px;color:var(--text-muted);">
+                    <summary>Technical details (JSON)</summary>
+                    <pre id="today-menu-student" style="margin-top:6px;">[]</pre>
+                </details>
+
+                <h3 style="margin-top:18px;">My mess feedback (local)</h3>
+                <p style="font-size:13px;color:var(--text-muted);margin-bottom:6px;">
+                    This feedback is stored only in your browser for now and does not affect billing.
+                </p>
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;font-size:13px;">
+                    <label>Food:
+                        <input type="range" id="rate-food" min="1" max="10" value="7" oninput="updateRatingLabel('food')">
+                        <span id="rate-food-label">7 / 10</span>
+                    </label>
+                    <label>Cleanliness:
+                        <input type="range" id="rate-clean" min="1" max="10" value="7" oninput="updateRatingLabel('clean')">
+                        <span id="rate-clean-label">7 / 10</span>
+                    </label>
+                    <label>Serving:
+                        <input type="range" id="rate-serve" min="1" max="10" value="7" oninput="updateRatingLabel('serve')">
+                        <span id="rate-serve-label">7 / 10</span>
+                    </label>
+                    <label>Behaviour:
+                        <input type="range" id="rate-behav" min="1" max="10" value="7" oninput="updateRatingLabel('behav')">
+                        <span id="rate-behav-label">7 / 10</span>
+                    </label>
+                </div>
+                <button style="margin-top:8px;" onclick="saveLocalRating()">Save my feedback (local)</button>
+                <div id="rating-message" class="alert" style="display:none;margin-top:6px;"></div>
+
+                <h3 style="margin-top:18px;">My Meal Attendance</h3>
+                <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px;">
+                    <input id="att-day" type="date" />
+                    <select id="att-meal">
+                        <option value="breakfast">Breakfast</option>
+                        <option value="lunch">Lunch</option>
+                        <option value="dinner">Dinner</option>
+                    </select>
+                    <button onclick="attendMeal(true)">I will eat</button>
+                    <button onclick="attendMeal(false)">I will skip</button>
+                </div>
+
+                <button onclick="loadMyAttendance()">Refresh My Attendance</button>
+                <div id="att-message" class="alert" style="display:none;margin-top:6px;"></div>
+                <pre id="my-attendance">[]</pre>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+
+        // Mess functions
+        async function loadTodayMenuStudent() {
+            const msg = document.getElementById("menu-message");
+            msg.style.display = "none";
+            try {
+                const res = await fetch(API_BASE + "/api/mess/menu/today");
+                if (!res.ok) throw new Error("Failed to load today’s menu");
+                const data = await res.json();
+
+                document.getElementById("today-menu-student").textContent =
+                    JSON.stringify(data, null, 2);
+
+                document.getElementById("tile-breakfast").textContent =
+                    (data.breakfast && data.breakfast.join(", ")) || "—";
+                document.getElementById("tile-lunch").textContent =
+                    (data.lunch && data.lunch.join(", ")) || "—";
+                document.getElementById("tile-dinner").textContent =
+                    (data.dinner && data.dinner.join(", ")) || "—";
+
+                fillMenuList("list-breakfast", data.breakfast);
+                fillMenuList("list-lunch", data.lunch);
+                fillMenuList("list-dinner", data.dinner);
+
+                msg.textContent = "Today’s menu loaded.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+            } catch (err) {
+                msg.textContent = err.message;
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        function fillMenuList(id, arr) {
+            const ul = document.getElementById(id);
+            const items = Array.isArray(arr) && arr.length ? arr : ["No items listed."];
+            ul.innerHTML = items.map((x) => "<li>" + x + "</li>").join("");
+        }
+
+        async function attendMeal(attending) {
+            const token = localStorage.getItem("access_token");
+            const msg = document.getElementById("att-message");
+            msg.style.display = "none";
+
+            const body = {
+                day: document.getElementById("att-day").value,
+                meal: document.getElementById("att-meal").value,
+                attending: attending,
+            };
+            try {
+                await fetch(API_BASE + "/api/mess/attendance", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: "Bearer " + token,
+                    },
+                    body: JSON.stringify(body),
+                });
+                msg.textContent = attending ?
+                    "Marked that you will eat this meal." :
+                    "Marked that you will skip this meal.";
+                msg.className = "alert success";
+                msg.style.display = "block";
+                await loadMyAttendance();
+            } catch (err) {
+                msg.textContent = "Failed to update attendance.";
+                msg.className = "alert error";
+                msg.style.display = "block";
+            }
+        }
+
+        async function loadMyAttendance() {
+            const token = localStorage.getItem("access_token");
+            const res = await fetch(API_BASE + "/api/mess/attendance", {
+                headers: {
+                    Authorization: "Bearer " + token
+                },
+            });
+            const data = await res.json();
+            document.getElementById("my-attendance").textContent = JSON.stringify(
+                data,
+                null,
+                2
+            );
+        }
+
+        // Local rating helpers (no backend)
+        function updateRatingLabel(kind) {
+            const map = {
+                food: "rate-food",
+                clean: "rate-clean",
+                serve: "rate-serve",
+                behav: "rate-behav",
+            };
+            const input = document.getElementById(map[kind]);
+            const label = document.getElementById(map[kind] + "-label");
+            label.textContent = input.value + " / 10";
+        }
+
+        function saveLocalRating() {
+            const rating = {
+                food: document.getElementById("rate-food").value,
+                cleanliness: document.getElementById("rate-clean").value,
+                serving: document.getElementById("rate-serve").value,
+                behaviour: document.getElementById("rate-behav").value,
+            };
+            localStorage.setItem("mess_rating", JSON.stringify(rating));
+            const msg = document.getElementById("rating-message");
+            msg.textContent = "Feedback saved locally on this browser.";
+            msg.className = "alert success";
+            msg.style.display = "block";
+        }
+
+        function loadLocalRating() {
+            const saved = localStorage.getItem("mess_rating");
+            if (!saved) return;
+            try {
+                const r = JSON.parse(saved);
+                if (r.food) document.getElementById("rate-food").value = r.food;
+                if (r.cleanliness) document.getElementById("rate-clean").value = r.cleanliness;
+                if (r.serving) document.getElementById("rate-serve").value = r.serving;
+                if (r.behaviour) document.getElementById("rate-behav").value = r.behaviour;
+                updateRatingLabel("food");
+                updateRatingLabel("clean");
+                updateRatingLabel("serve");
+                updateRatingLabel("behav");
+            } catch {}
+        }
+
+        async function checkAccess() {
+            const token = localStorage.getItem("access_token");
+            if (!token) {
+                window.location.href = "index.html";
+                return;
+            }
+
+            try {
+                const res = await fetch(API_BASE + "/api/me", {
+                    headers: {
+                        Authorization: "Bearer " + token
+                    },
+                });
+
+                if (!res.ok) {
+                    window.location.href = "index.html";
+                    return;
+                }
+
+                const data = await res.json();
+
+                if (data.role !== "student") {
+                    document.getElementById("info").textContent =
+                        "You are not student (role: " + data.role + ")";
+                } else {
+                    document.getElementById("info").textContent =
+                        "Welcome, student " + data.username;
+                    loadLocalRating();
+                    await loadTodayMenuStudent();
+                    await loadMyAttendance();
+                }
+            } catch (err) {
+                window.location.href = "index.html";
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem("access_token");
+            localStorage.removeItem("role");
+            window.location.href = "index.html";
+        }
+
+        checkAccess();
+    </script>
+</body>
+
+</html>
