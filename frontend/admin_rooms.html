@@ -98,16 +98,16 @@
         function updateDateTime() {
             const now = new Date();
             const options = {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
+                weekday: "long",
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
                 hour12: true
             };
-            document.getElementById('datetime').textContent =
-                now.toLocaleDateString('en-IN', options);
+            document.getElementById("datetime").textContent =
+                now.toLocaleDateString("en-IN", options);
         }
 
         async function checkAccess() {
@@ -121,7 +121,7 @@
                 const res = await fetch(API_BASE + "/api/me", {
                     headers: {
                         Authorization: "Bearer " + token
-                    },
+                    }
                 });
 
                 if (!res.ok) {
@@ -152,7 +152,9 @@
             msg.style.display = "none";
 
             const roomNumber = document.getElementById("room-number").value.trim();
-            const capacity = parseInt(document.getElementById("room-capacity").value || "0");
+            const capacity = parseInt(
+                document.getElementById("room-capacity").value || "0"
+            );
 
             if (!roomNumber || !capacity || capacity < 1) {
                 msg.textContent = "Enter valid room number and capacity (1-6).";
@@ -166,14 +168,14 @@
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        Authorization: "Bearer " + token,
+                        Authorization: "Bearer " + token
                     },
                     body: JSON.stringify({
                         room_number: roomNumber,
                         block: "A",
                         capacity: capacity,
                         room_type: "normal"
-                    }),
+                    })
                 });
 
                 if (!res.ok) {
@@ -217,12 +219,12 @@
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        Authorization: "Bearer " + token,
+                        Authorization: "Bearer " + token
                     },
                     body: JSON.stringify({
                         room_number: roomNumber,
                         username: studentUsername
-                    }),
+                    })
                 });
 
                 if (!res.ok) {
@@ -255,7 +257,7 @@
                 const res = await fetch(API_BASE + "/api/rooms/", {
                     headers: {
                         Authorization: "Bearer " + token
-                    },
+                    }
                 });
                 if (!res.ok) throw new Error("Failed to load rooms");
                 const data = await res.json();
@@ -268,7 +270,7 @@
                 let occupied = 0;
                 let totalCapacity = 0;
 
-                rooms.forEach(room => {
+                rooms.forEach((room) => {
                     totalCapacity += room.capacity || 0;
                     if (room.occupants && Array.isArray(room.occupants)) {
                         if (room.occupants.length > 0) occupied++;
@@ -298,25 +300,38 @@
                             const cap = room.capacity || 0;
                             const occ = (room.occupants || []).length;
                             const students = room.occupants ?
-                                room.occupants.slice(0, 3).map(s => s.username || s).join(", ") :
+                                room.occupants
+                                .slice(0, 3)
+                                .map((s) => s.username || s)
+                                .join(", ") :
                                 "";
                             const more = occ > 3 ? ` +${occ - 3}` : "";
                             const statusClass =
-                                occ === 0 ? "badge-success" :
-                                occ < cap ? "badge-warning" : "badge-error";
+                                occ === 0 ?
+                                "badge-success" :
+                                occ < cap ?
+                                "badge-warning" :
+                                "badge-error";
                             const statusText =
-                                occ === 0 ? "Vacant" :
-                                occ < cap ? "Partial" : "Full";
+                                occ === 0 ? "Vacant" : occ < cap ? "Partial" : "Full";
 
                             return (
                                 '<div style="padding:8px 10px;border-radius:var(--radius-md);border:1px solid rgba(55,65,81,0.7);margin-bottom:6px;">' +
                                 '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;">' +
-                                '<span style="font-weight:600;">Room ' + num + '</span>' +
-                                '<span class="' + statusClass + '" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' +
-                                statusText + '</span>' +
+                                '<span style="font-weight:600;">Room ' +
+                                num +
+                                "</span>" +
+                                '<span class="' +
+                                statusClass +
+                                '" style="font-size:11px;text-transform:uppercase;letter-spacing:0.06em;">' +
+                                statusText +
+                                "</span>" +
                                 "</div>" +
                                 '<div style="font-size:12px;color:var(--text-muted);">' +
-                                occ + '/' + cap + ' occupied • ' +
+                                occ +
+                                "/" +
+                                cap +
+                                " occupied • " +
                                 (students ? students + more : "No students") +
                                 "</div>" +
                                 "</div>"
