@@ -162,7 +162,7 @@
             }
 
             try {
-                await fetch(API_BASE + "/api/rooms/", {
+                const res = await fetch(API_BASE + "/api/rooms/", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -170,9 +170,20 @@
                     },
                     body: JSON.stringify({
                         room_number: roomNumber,
-                        capacity
+                        block: "A",
+                        capacity: capacity,
+                        room_type: "normal"
                     }),
                 });
+
+                if (!res.ok) {
+                    const errText = await res.text();
+                    msg.textContent = "Failed to create room: " + errText;
+                    msg.className = "alert error";
+                    msg.style.display = "block";
+                    return;
+                }
+
                 msg.textContent = "Room created successfully.";
                 msg.className = "alert success";
                 msg.style.display = "block";
@@ -202,7 +213,7 @@
             }
 
             try {
-                await fetch(API_BASE + "/api/rooms/allocate", {
+                const res = await fetch(API_BASE + "/api/rooms/allocate", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
@@ -213,6 +224,15 @@
                         username: studentUsername
                     }),
                 });
+
+                if (!res.ok) {
+                    const errText = await res.text();
+                    msg.textContent = "Failed to allocate student: " + errText;
+                    msg.className = "alert error";
+                    msg.style.display = "block";
+                    return;
+                }
+
                 msg.textContent = "Student allocated successfully.";
                 msg.className = "alert success";
                 msg.style.display = "block";
