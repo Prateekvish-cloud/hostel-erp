@@ -6,7 +6,6 @@ from sqlalchemy.orm import Session
 
 from app.dependencies import get_db
 from app.models.rooms import RoomDB, RoomCreate, RoomRead
-from app.models.users import UserDB
 from app.routers.auth import get_current_user
 
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])

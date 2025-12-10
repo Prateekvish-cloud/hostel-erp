@@ -1,8 +1,17 @@
+# app/database.py
+
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-DATABASE_URL = os.getenv("DATABASE_URL")  # set in Render env
+# On Render, set DATABASE_URL in the service's Environment tab.
+# Example (PostgreSQL):
+# postgres://user:password@host:port/dbname
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError("DATABASE_URL environment variable is not set")
 
 engine = create_engine(
     DATABASE_URL,

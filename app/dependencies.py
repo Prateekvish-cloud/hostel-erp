@@ -1,23 +1,21 @@
-# app/routers/dependencies.py  (or app/core/dependencies.py in your imports)
+# app/dependencies.py
 
-from typing import Generator
+from typing import Dict, Generator
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal          # your SQLAlchemy session factory
-from app import models                         # your ORM models
-from app.core import security                  # where you decode JWT tokens
+from app.database import SessionLocal          # for real DB access
+from app.models import users                   # fake_users_db lives here
+from app.core import security
 
-# The same tokenUrl you use in your /api/token route
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/token")
 
 
+# --- DB session dependency (for rooms, fees, etc.) ---
+
 def get_db() -> Generator[Session, None, None]:
-    """
-    Dependency: provide a database session and close it after the request.
-    """
     db = SessionLocal()
     try:
         yield db
@@ -25,14 +23,15 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+# --- Auth using fake_users_db ---
+
+def get_user(username: str) -> Dict | None:
+    return users.fake_users_db.get(username)
+
+
 def get_current_user(
-    db: Session = Depends(get_db),
     token: str = Depends(oauth2_scheme),
-) -> models.User:
-    """
-    Dependency: get the current user from the JWT access token.
-    """
-    # security.decode_access_token should return {'sub': username} or raise
+):
     try:
         payload = security.decode_access_token(token)
     except Exception:
@@ -50,7 +49,7 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    user = db.query(models.User).filter(models.User.username == username).first()
+    user = get_user(username)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -62,13 +61,9 @@ def get_current_user(
 
 
 def get_current_admin_user(
-    current_user: models.User = Depends(get_current_user),
-) -> models.User:
-    """
-    Dependency: ensure the current user is an admin.
-    """
-    # Adjust the field name (`role`, `is_admin`, etc.) to match your User model
-    if getattr(current_user, "role", None) != "admin":
+    current_user: dict = Depends(get_current_user),
+):
+    if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
